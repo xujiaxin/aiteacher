@@ -518,16 +518,16 @@ export default function MathProblemSolutionPage() {
                       </div>
                       <div className="leading-relaxed">
                         {solutionLines.map((line, index) => {
-                          const isVisible = mounted ? visibleLines.includes(index) : index === 0;
+                          const isVisible = visibleLines.includes(index);
                           return (
                             <div
                               key={index}
                               style={{
                                 opacity: isVisible ? 1 : 0,
                                 transform: isVisible ? 'translateY(0)' : 'translateY(10px)',
-                                transition: mounted ? 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out' : 'none',
+                                transition: 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out',
                                 marginBottom: index < solutionLines.length - 1 ? '0.5rem' : '0',
-                                visibility: isVisible ? 'visible' : 'hidden'
+                                pointerEvents: isVisible ? 'auto' : 'none'
                               }}
                               dangerouslySetInnerHTML={{ __html: line }}
                             />
