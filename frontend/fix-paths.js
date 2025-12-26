@@ -63,11 +63,11 @@ function fixPaths() {
     });
     
     // 背景图片 URL（处理普通引号和 HTML 实体编码）
-    // 先处理带 /aiteacher/ 前缀的
+    // 先处理带 /aiteacher/ 前缀的（转换为相对路径）
     content = content.replace(/url\(&#x27;\/aiteacher\/([^&#x27;)]+)&#x27;\)/g, `url('${prefix}$1')`);
     content = content.replace(/url\(['"]?\/aiteacher\/([^'")]+)['"]?\)/g, `url('${prefix}$1')`);
     
-    // 处理 HTML 实体编码的单引号 &#x27; - 必须处理这个
+    // 处理直接以 / 开头的路径（转换为相对路径）
     content = content.replace(/url\(&#x27;\/([^&#x27;)]+)&#x27;\)/g, `url('${prefix}$1')`);
     content = content.replace(/url\(['"]?\/([^'")]+)['"]?\)/g, `url('${prefix}$1')`);
     content = content.replace(/url\(&#x22;\/([^&#x22;)]+)&#x22;\)/g, `url('${prefix}$1')`);
