@@ -100,7 +100,7 @@ export default function MathProblemSolutionPage() {
       setTimeout(() => {
         setVisibleLines(prev => {
           // 确保按顺序添加，避免重复
-          if (!prev.includes(i) && prev.length === i) {
+          if (!prev.includes(i)) {
             return [...prev, i];
           }
           return prev;
