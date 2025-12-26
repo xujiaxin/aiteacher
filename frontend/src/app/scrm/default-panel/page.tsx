@@ -39,14 +39,11 @@ export default function MathProblemSolutionPage() {
   ];
 
   useEffect(() => {
-    // 标记为已挂载
-    setMounted(true);
-    
     // 确保在客户端执行
     if (typeof window === 'undefined') return;
     
-    // 重置可见行，从第一行开始动画
-    setVisibleLines([]);
+    // 标记为已挂载
+    setMounted(true);
     
     // 为路径添加动画
     const animatePath = (element: SVGPathElement | null, delay: number = 0) => {
@@ -54,7 +51,7 @@ export default function MathProblemSolutionPage() {
       
       try {
         const length = element.getTotalLength();
-        if (length === 0) return; // 如果路径长度为0，跳过
+        if (length === 0) return;
         
         element.style.strokeDasharray = `${length}`;
         element.style.strokeDashoffset = `${length}`;
@@ -70,7 +67,7 @@ export default function MathProblemSolutionPage() {
       }
     };
 
-    // 为直线添加动画（计算直线长度）
+    // 为直线添加动画
     const animateLine = (element: SVGLineElement | null, delay: number = 0) => {
       if (!element) return;
       
@@ -97,63 +94,54 @@ export default function MathProblemSolutionPage() {
       }
     };
 
-    // 文字逐行显示动画（先开始）
-    const lines = [
-      "指数函数y=a<sup>x</sup>的图象特征:",
-      "当a>1时,函数递增",
-      "当0<a<1时,函数递减",
-      "第二步:根据图象分析a和b的大小关系",
-      "从图象可以看出,两个函数都递增,所以a>1,b>1",
-      "比较函数增长速度:当x>0时,y=b<sup>x</sup>的图象在y=a<sup>x</sup>上方",
-      "所以b>a,即b>a>1"
-    ];
+    // 文字逐行显示动画 - 使用更简单直接的方式
+    // 先清空，然后逐行添加
+    setVisibleLines([]);
     
-    // 文字动画：每行间隔 300ms，从 0 开始
-    lines.forEach((_, index) => {
-      setTimeout(() => {
-        setVisibleLines(prev => {
-          if (!prev.includes(index)) {
-            return [...prev, index];
-          }
-          return prev;
-        });
-      }, index * 300);
-    });
+    // 延迟一下确保状态重置完成
+    setTimeout(() => {
+      // 第一行立即显示
+      setVisibleLines([0]);
+      
+      // 后续行依次显示
+      for (let i = 1; i < solutionLines.length; i++) {
+        setTimeout(() => {
+          setVisibleLines(prev => {
+            const newLines = [...prev, i];
+            return newLines;
+          });
+        }, i * 300);
+      }
+    }, 50);
 
-    // SVG 容器在文字动画完成后淡入显示
-    // 文字动画大约在 7 * 300 + 500 = 2600ms 后完成
-    const svgContainerDelay = 2600;
+    // SVG 容器在文字动画完成后淡入
+    const svgContainerDelay = solutionLines.length * 300 + 500;
     
     setTimeout(() => {
       setShowSvg(true);
     }, svgContainerDelay);
 
-    // SVG 动画从左到右依次呈现（在容器显示之后）
-    const svgStartDelay = svgContainerDelay + 300; // 容器淡入后再开始路径动画
+    // SVG 动画
+    const svgStartDelay = svgContainerDelay + 300;
     
-    // 等待 DOM 完全加载后再执行 SVG 动画
     const initSvgAnimations = () => {
-      // X轴（从左到右）
       animateLine(line1Ref.current, svgStartDelay);
-      
-      // Y轴（从下到上，在X轴之后）
       animateLine(line2Ref.current, svgStartDelay + 1500);
-      
-      // y=b^x 曲线（从左到右，在Y轴之后）
       animatePath(path1Ref.current, svgStartDelay + 3000);
-      
-      // y=a^x 曲线（从左到右，在y=b^x之后）
       animatePath(path2Ref.current, svgStartDelay + 5000);
     };
     
-    // 确保 SVG 元素已经渲染
-    if (line1Ref.current && line2Ref.current) {
-      initSvgAnimations();
-    } else {
-      // 如果元素还没渲染，等待一下
-      setTimeout(initSvgAnimations, 100);
-    }
-  }, []);
+    // 等待 SVG 元素渲染
+    const checkAndInit = () => {
+      if (line1Ref.current && line2Ref.current && path1Ref.current && path2Ref.current) {
+        initSvgAnimations();
+      } else {
+        setTimeout(checkAndInit, 50);
+      }
+    };
+    
+    setTimeout(checkAndInit, 100);
+  }, [solutionLines.length]);
 
   return (
     <div 
