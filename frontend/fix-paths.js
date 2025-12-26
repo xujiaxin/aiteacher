@@ -19,7 +19,12 @@ function findHtmlFiles(dir, fileList = []) {
 // 计算相对路径深度
 function getRelativeDepth(filePath) {
   const relativePath = path.relative('out', filePath);
+  // 对于 GitHub Pages，需要考虑 basePath /aiteacher
+  // 文件路径如: out/scrm/default-panel/index.html
+  // 访问路径: /aiteacher/scrm/default-panel/
+  // 需要向上 3 级: ../../../
   const depth = relativePath.split(path.sep).length - 1;
+  // 如果文件在子目录中，需要额外考虑 basePath 的层级
   return depth;
 }
 
