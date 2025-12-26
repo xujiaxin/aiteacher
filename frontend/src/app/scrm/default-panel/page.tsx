@@ -37,37 +37,56 @@ export default function MathProblemSolutionPage() {
   ];
 
   useEffect(() => {
+    // 确保在客户端执行
+    if (typeof window === 'undefined') return;
+    
     // 为路径添加动画
     const animatePath = (element: SVGPathElement | null, delay: number = 0) => {
       if (!element) return;
       
-      const length = element.getTotalLength();
-      element.style.strokeDasharray = `${length}`;
-      element.style.strokeDashoffset = `${length}`;
-      element.style.transition = "stroke-dashoffset 2s ease-in-out";
-      
-      setTimeout(() => {
-        element.style.strokeDashoffset = "0";
-      }, delay);
+      try {
+        const length = element.getTotalLength();
+        if (length === 0) return; // 如果路径长度为0，跳过
+        
+        element.style.strokeDasharray = `${length}`;
+        element.style.strokeDashoffset = `${length}`;
+        element.style.transition = "stroke-dashoffset 2s ease-in-out";
+        
+        setTimeout(() => {
+          if (element) {
+            element.style.strokeDashoffset = "0";
+          }
+        }, delay);
+      } catch (error) {
+        console.warn('Path animation error:', error);
+      }
     };
 
     // 为直线添加动画（计算直线长度）
     const animateLine = (element: SVGLineElement | null, delay: number = 0) => {
       if (!element) return;
       
-      const x1 = parseFloat(element.getAttribute("x1") || "0");
-      const y1 = parseFloat(element.getAttribute("y1") || "0");
-      const x2 = parseFloat(element.getAttribute("x2") || "0");
-      const y2 = parseFloat(element.getAttribute("y2") || "0");
-      
-      const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-      element.style.strokeDasharray = `${length}`;
-      element.style.strokeDashoffset = `${length}`;
-      element.style.transition = "stroke-dashoffset 1.5s ease-in-out";
-      
-      setTimeout(() => {
-        element.style.strokeDashoffset = "0";
-      }, delay);
+      try {
+        const x1 = parseFloat(element.getAttribute("x1") || "0");
+        const y1 = parseFloat(element.getAttribute("y1") || "0");
+        const x2 = parseFloat(element.getAttribute("x2") || "0");
+        const y2 = parseFloat(element.getAttribute("y2") || "0");
+        
+        const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        if (length === 0) return;
+        
+        element.style.strokeDasharray = `${length}`;
+        element.style.strokeDashoffset = `${length}`;
+        element.style.transition = "stroke-dashoffset 1.5s ease-in-out";
+        
+        setTimeout(() => {
+          if (element) {
+            element.style.strokeDashoffset = "0";
+          }
+        }, delay);
+      } catch (error) {
+        console.warn('Line animation error:', error);
+      }
     };
 
     // 文字逐行显示动画（先开始）
@@ -84,7 +103,12 @@ export default function MathProblemSolutionPage() {
     // 文字动画：每行间隔 300ms，从 0 开始
     lines.forEach((_, index) => {
       setTimeout(() => {
-        setVisibleLines(prev => [...prev, index]);
+        setVisibleLines(prev => {
+          if (!prev.includes(index)) {
+            return [...prev, index];
+          }
+          return prev;
+        });
       }, index * 300);
     });
 
@@ -99,17 +123,28 @@ export default function MathProblemSolutionPage() {
     // SVG 动画从左到右依次呈现（在容器显示之后）
     const svgStartDelay = svgContainerDelay + 300; // 容器淡入后再开始路径动画
     
-    // X轴（从左到右）
-    animateLine(line1Ref.current, svgStartDelay);
+    // 等待 DOM 完全加载后再执行 SVG 动画
+    const initSvgAnimations = () => {
+      // X轴（从左到右）
+      animateLine(line1Ref.current, svgStartDelay);
+      
+      // Y轴（从下到上，在X轴之后）
+      animateLine(line2Ref.current, svgStartDelay + 1500);
+      
+      // y=b^x 曲线（从左到右，在Y轴之后）
+      animatePath(path1Ref.current, svgStartDelay + 3000);
+      
+      // y=a^x 曲线（从左到右，在y=b^x之后）
+      animatePath(path2Ref.current, svgStartDelay + 5000);
+    };
     
-    // Y轴（从下到上，在X轴之后）
-    animateLine(line2Ref.current, svgStartDelay + 1500);
-    
-    // y=b^x 曲线（从左到右，在Y轴之后）
-    animatePath(path1Ref.current, svgStartDelay + 3000);
-    
-    // y=a^x 曲线（从左到右，在y=b^x之后）
-    animatePath(path2Ref.current, svgStartDelay + 5000);
+    // 确保 SVG 元素已经渲染
+    if (line1Ref.current && line2Ref.current) {
+      initSvgAnimations();
+    } else {
+      // 如果元素还没渲染，等待一下
+      setTimeout(initSvgAnimations, 100);
+    }
   }, []);
 
   return (
@@ -486,18 +521,22 @@ export default function MathProblemSolutionPage() {
                         </span>
                       </div>
                       <div className="leading-relaxed">
-                        {solutionLines.map((line, index) => (
-                          <div
-                            key={index}
-                            style={{
-                              opacity: visibleLines.includes(index) ? 1 : 0,
-                              transform: visibleLines.includes(index) ? 'translateY(0)' : 'translateY(10px)',
-                              transition: 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out',
-                              marginBottom: index < solutionLines.length - 1 ? '0.5rem' : '0'
-                            }}
-                            dangerouslySetInnerHTML={{ __html: line }}
-                          />
-                        ))}
+                        {solutionLines.map((line, index) => {
+                          const isVisible = visibleLines.includes(index);
+                          return (
+                            <div
+                              key={index}
+                              style={{
+                                opacity: isVisible ? 1 : 0,
+                                transform: isVisible ? 'translateY(0)' : 'translateY(10px)',
+                                transition: 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out',
+                                marginBottom: index < solutionLines.length - 1 ? '0.5rem' : '0',
+                                visibility: isVisible ? 'visible' : 'hidden'
+                              }}
+                              dangerouslySetInnerHTML={{ __html: line }}
+                            />
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
