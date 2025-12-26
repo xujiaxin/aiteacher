@@ -42,9 +42,6 @@ export default function MathProblemSolutionPage() {
     // 确保在客户端执行
     if (typeof window === 'undefined') return;
     
-    // 标记为已挂载
-    setMounted(true);
-    
     // 为路径添加动画
     const animatePath = (element: SVGPathElement | null, delay: number = 0) => {
       if (!element) return;
