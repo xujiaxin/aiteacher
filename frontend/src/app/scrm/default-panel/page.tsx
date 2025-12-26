@@ -20,10 +20,12 @@ export default function MathProblemSolutionPage() {
   const line1Ref = useRef<SVGLineElement>(null);
   const line2Ref = useRef<SVGLineElement>(null);
 
-  // 文字逐行显示状态
-  const [visibleLines, setVisibleLines] = useState<number[]>([]);
-  // SVG 容器显示状态
+  // 文字逐行显示状态 - 初始显示第一行，避免完全空白
+  const [visibleLines, setVisibleLines] = useState<number[]>([0]);
+  // SVG 容器显示状态 - 初始隐藏，等待动画
   const [showSvg, setShowSvg] = useState(false);
+  // 客户端挂载状态
+  const [mounted, setMounted] = useState(false);
   
   // 解题步骤的文字行
   const solutionLines = [
@@ -37,8 +39,14 @@ export default function MathProblemSolutionPage() {
   ];
 
   useEffect(() => {
+    // 标记为已挂载
+    setMounted(true);
+    
     // 确保在客户端执行
     if (typeof window === 'undefined') return;
+    
+    // 重置可见行，从第一行开始动画
+    setVisibleLines([]);
     
     // 为路径添加动画
     const animatePath = (element: SVGPathElement | null, delay: number = 0) => {
@@ -522,14 +530,14 @@ export default function MathProblemSolutionPage() {
                       </div>
                       <div className="leading-relaxed">
                         {solutionLines.map((line, index) => {
-                          const isVisible = visibleLines.includes(index);
+                          const isVisible = mounted ? visibleLines.includes(index) : index === 0;
                           return (
                             <div
                               key={index}
                               style={{
                                 opacity: isVisible ? 1 : 0,
                                 transform: isVisible ? 'translateY(0)' : 'translateY(10px)',
-                                transition: 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out',
+                                transition: mounted ? 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out' : 'none',
                                 marginBottom: index < solutionLines.length - 1 ? '0.5rem' : '0',
                                 visibility: isVisible ? 'visible' : 'hidden'
                               }}
