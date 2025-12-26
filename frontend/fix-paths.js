@@ -55,9 +55,15 @@ function fixPaths() {
     
     // 背景图片 URL（处理普通引号和 HTML 实体编码）
     content = content.replace(/url\(['"]?\/([^'")]+)['"]?\)/g, `url('${prefix}$1')`);
-    // 处理 HTML 实体编码的单引号 &#x27;
+    // 处理 HTML 实体编码的单引号 &#x27; - 必须处理这个
     content = content.replace(/url\(&#x27;\/([^&#x27;)]+)&#x27;\)/g, `url('${prefix}$1')`);
     content = content.replace(/url\(&#x22;\/([^&#x22;)]+)&#x22;\)/g, `url('${prefix}$1')`);
+    
+    // 特别处理 style 属性中的背景图片（HTML 实体编码）
+    content = content.replace(/style="([^"]*background-image[^"]*)"/g, (match, styleContent) => {
+      const fixed = styleContent.replace(/url\(&#x27;\/([^&#x27;)]+)&#x27;\)/g, `url('${prefix}$1')`);
+      return `style="${fixed}"`;
+    });
     
     // 修复 style 属性中的路径
     content = content.replace(/style="([^"]*)"/g, (match, styleContent) => {
