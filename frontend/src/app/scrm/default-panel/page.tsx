@@ -116,7 +116,7 @@ export default function MathProblemSolutionPage() {
     <div 
       className="min-h-screen w-full fixed inset-0 bg-cover bg-center bg-no-repeat"
       style={{
-        backgroundImage: "url('/bg@2x.webp')",
+        backgroundImage: `url('${process.env.NODE_ENV === 'production' ? '/aiteacher' : ''}/bg@2x.webp')`,
       }}
     >
       {/* 主内容区域 */}
