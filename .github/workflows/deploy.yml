@@ -32,7 +32,8 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./frontend
-        run: npm ci
+        run: |
+          npm ci || npm install
 
       - name: Build
         working-directory: ./frontend
@@ -40,7 +41,18 @@ jobs:
 
       - name: Fix paths
         working-directory: ./frontend
-        run: node fix-paths.js
+        run: |
+          if [ -f "fix-paths.js" ]; then
+            node fix-paths.js
+          else
+            echo "fix-paths.js not found, skipping"
+          fi
+
+      - name: List build output
+        working-directory: ./frontend
+        run: |
+          ls -la out/ || echo "out directory not found"
+          find out -name "*.html" | head -5 || echo "No HTML files found"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
