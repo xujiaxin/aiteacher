@@ -95,24 +95,21 @@ export default function MathProblemSolutionPage() {
     };
 
     // 文字逐行显示动画 - 使用更简单直接的方式
-    // 先清空，然后逐行添加
-    setVisibleLines([]);
+    // 第一行立即显示
+    setVisibleLines([0]);
     
-    // 延迟一下确保状态重置完成
-    setTimeout(() => {
-      // 第一行立即显示
-      setVisibleLines([0]);
-      
-      // 后续行依次显示
-      for (let i = 1; i < solutionLines.length; i++) {
-        setTimeout(() => {
-          setVisibleLines(prev => {
-            const newLines = [...prev, i];
-            return newLines;
-          });
-        }, i * 300);
-      }
-    }, 50);
+    // 后续行依次显示
+    for (let i = 1; i < solutionLines.length; i++) {
+      setTimeout(() => {
+        setVisibleLines(prev => {
+          // 确保按顺序添加，避免重复
+          if (!prev.includes(i) && prev.length === i) {
+            return [...prev, i];
+          }
+          return prev;
+        });
+      }, i * 300);
+    }
 
     // SVG 容器在文字动画完成后淡入
     const svgContainerDelay = solutionLines.length * 300 + 500;
