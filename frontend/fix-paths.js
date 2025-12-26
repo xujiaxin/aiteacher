@@ -39,20 +39,24 @@ function fixPaths() {
     const prefix = '../'.repeat(depth) || './';
     
     // 修复各种资源路径
-    // CSS 和 JS 文件（先处理 _next 路径）
+    // CSS 和 JS 文件（先处理 _next 路径，包括 /aiteacher/_next）
+    content = content.replace(/href="\/aiteacher\/_next\//g, `href="${prefix}_next/`);
+    content = content.replace(/src="\/aiteacher\/_next\//g, `src="${prefix}_next/`);
     content = content.replace(/href="\/_next\//g, `href="${prefix}_next/`);
     content = content.replace(/src="\/_next\//g, `src="${prefix}_next/`);
     
-    // 公共资源（图片等）- 更精确的匹配
+    // 公共资源（图片等）- 处理 /aiteacher/ 前缀和直接 / 开头的
+    content = content.replace(/href="\/aiteacher\/([^"/]+)"/g, `href="${prefix}$1"`);
+    content = content.replace(/src="\/aiteacher\/([^"/]+)"/g, `src="${prefix}$1"`);
     content = content.replace(/href="\/([^"/]+)"/g, (match, path) => {
-      // 跳过已经是相对路径的
-      if (path.startsWith('_next') || path.startsWith('../') || path.startsWith('./')) {
+      // 跳过已经是相对路径的或 _next
+      if (path.startsWith('_next') || path.startsWith('../') || path.startsWith('./') || path.startsWith('aiteacher')) {
         return match;
       }
       return `href="${prefix}${path}"`;
     });
     content = content.replace(/src="\/([^"/]+)"/g, (match, path) => {
-      if (path.startsWith('_next') || path.startsWith('../') || path.startsWith('./')) {
+      if (path.startsWith('_next') || path.startsWith('../') || path.startsWith('./') || path.startsWith('aiteacher')) {
         return match;
       }
       return `src="${prefix}${path}"`;
