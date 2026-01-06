@@ -5,7 +5,9 @@ import React, { useEffect, useRef, useState } from "react";
 export default function MathProblemSolutionPage() {
   // 根据页面标题获取图标
   const getIconByTitle = (title: string) => {
-    const basePath = process.env.NODE_ENV === 'production' ? '/aiteacher' : '';
+    // 检查是否在GitHub Pages环境（路径包含/aiteacher）
+    const isGitHubPages = typeof window !== 'undefined' && window.location.pathname.startsWith('/aiteacher');
+    const basePath = isGitHubPages ? '/aiteacher' : '';
     if (title.includes("解题步骤") || title.includes("解题")) {
       return `${basePath}/icon_jietibuzou@2x.png`;
     }
@@ -37,7 +39,9 @@ export default function MathProblemSolutionPage() {
 
   // 根据选中的选项获取背景图片
   const getBackgroundImage = (option: string) => {
-    const basePath = process.env.NODE_ENV === 'production' ? '/aiteacher' : '';
+    // 检查是否在GitHub Pages环境（路径包含/aiteacher）
+    const isGitHubPages = typeof window !== 'undefined' && window.location.pathname.startsWith('/aiteacher');
+    const basePath = isGitHubPages ? '/aiteacher' : '';
     switch (option) {
       case 'A':
         return `${basePath}/bg_gzsx@2x.webp`;
@@ -537,43 +541,57 @@ export default function MathProblemSolutionPage() {
     const svgStartDelay = svgContainerDelay + 300; // 容器淡入后再等待 300ms
     
     // 等待 SVG 元素渲染后再开始动画
+    let retryCount = 0;
+    const maxRetries = 20; // 最多重试20次
+    
     const initSvgAnimations = () => {
-      if (line1Ref.current && line2Ref.current && path1Ref.current && path2Ref.current) {
+      // 检查所有refs是否都已准备好
+      const allRefsReady = line1Ref.current && line2Ref.current && path1Ref.current && path2Ref.current;
+      
+      if (allRefsReady) {
         // 确保线条仍然是隐藏状态
         initSvgElements();
         
-        // 短暂延迟后开始动画
-        setTimeout(() => {
-          // 1. X和Y坐标轴同时出现
-          animateLine(line1Ref.current, 0); // X轴
-          animateLine(line2Ref.current, 0); // Y轴，同时出现
-          
-          // 2. 坐标轴动画完成后（1.5s），显示箭头
-          const arrowDelay = 1500 + 300; // 坐标轴动画时长1.5s + 300ms延迟
+        // 使用 requestAnimationFrame 确保 DOM 已完全渲染
+        requestAnimationFrame(() => {
+          // 短暂延迟后开始动画
           setTimeout(() => {
-            setShowArrows(true);
-          }, arrowDelay);
-          
-          // 3. 箭头显示后，显示X、Y、0标签
-          const axisLabelsDelay = arrowDelay + 300;
-          setTimeout(() => {
-            setShowAxisLabels(true);
-          }, axisLabelsDelay);
-          
-          // 4. 标签显示后，显示两条曲线
-          const curvesDelay = axisLabelsDelay + 300;
-          animatePath(path1Ref.current, curvesDelay); // y=b^x 曲线
-          animatePath(path2Ref.current, curvesDelay); // y=a^x 曲线，同时出现
-          
-          // 5. 曲线动画完成后（2s），显示函数标签
-          const functionLabelsDelay = curvesDelay + 2000 + 300; // 曲线动画时长2s + 300ms延迟
-          setTimeout(() => {
-            setShowFunctionLabels(true);
-          }, functionLabelsDelay);
-        }, 50);
+            // 1. X和Y坐标轴同时出现
+            animateLine(line1Ref.current, 0); // X轴
+            animateLine(line2Ref.current, 0); // Y轴，同时出现
+            
+            // 2. 坐标轴动画完成后（1.5s），显示箭头
+            const arrowDelay = 1500 + 300; // 坐标轴动画时长1.5s + 300ms延迟
+            setTimeout(() => {
+              setShowArrows(true);
+            }, arrowDelay);
+            
+            // 3. 箭头显示后，显示X、Y、0标签
+            const axisLabelsDelay = arrowDelay + 300;
+            setTimeout(() => {
+              setShowAxisLabels(true);
+            }, axisLabelsDelay);
+            
+            // 4. 标签显示后，显示两条曲线
+            const curvesDelay = axisLabelsDelay + 300;
+            animatePath(path1Ref.current, curvesDelay); // y=b^x 曲线
+            animatePath(path2Ref.current, curvesDelay); // y=a^x 曲线，同时出现
+            
+            // 5. 曲线动画完成后（2s），显示函数标签
+            const functionLabelsDelay = curvesDelay + 2000 + 300; // 曲线动画时长2s + 300ms延迟
+            setTimeout(() => {
+              setShowFunctionLabels(true);
+            }, functionLabelsDelay);
+          }, 50);
+        });
       } else {
         // 如果元素还没准备好，等待一段时间后重试
-        setTimeout(initSvgAnimations, 100);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          setTimeout(initSvgAnimations, 200); // 增加重试间隔到200ms
+        } else {
+          console.warn('SVG elements not ready after max retries');
+        }
       }
     };
     
@@ -646,7 +664,7 @@ export default function MathProblemSolutionPage() {
               }}
             >
               <img
-                src={`${process.env.NODE_ENV === 'production' ? '/aiteacher' : ''}/bg_toppoint@2x.png`}
+                src={`${typeof window !== 'undefined' && window.location.pathname.startsWith('/aiteacher') ? '/aiteacher' : ''}/bg_toppoint@2x.png`}
                 alt=""
                 className="pointer-events-none"
                 style={{
