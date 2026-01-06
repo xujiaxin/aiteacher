@@ -15,6 +15,352 @@ export default function MathProblemSolutionPage() {
   const sectionTitle = "解题步骤";
   const iconPath = getIconByTitle(sectionTitle);
 
+  // 选中的选项状态，默认为 A
+  const [selectedOption, setSelectedOption] = useState<string>('A');
+  
+  // 背景图淡入淡出状态
+  const [currentBg, setCurrentBg] = useState<string>('A');
+  const [bgOpacity, setBgOpacity] = useState<number>(1);
+  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
+  
+  // 动态颜色方案状态（从图片提取）
+  const [dynamicColorScheme, setDynamicColorScheme] = useState<{
+    selected: {
+      background: string;
+      textColor: string;
+    };
+    unselected: {
+      background: string;
+      textColor: string;
+    };
+  } | null>(null);
+
+  // 根据选中的选项获取背景图片
+  const getBackgroundImage = (option: string) => {
+    const basePath = process.env.NODE_ENV === 'production' ? '/aiteacher' : '';
+    switch (option) {
+      case 'A':
+        return `${basePath}/bg_gzsx@2x.webp`;
+      case 'B':
+        return `${basePath}/bg_xxyy@2x.png`;
+      case 'C':
+        return `${basePath}/bg_xxsx@2x.png`;
+      case 'D':
+        return `${basePath}/bg_czhx@2x.png`;
+      default:
+        return `${basePath}/bg_gzsx@2x.webp`;
+    }
+  };
+
+  // 从图片提取颜色的函数
+  const extractColorFromImage = async (imageUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('无法创建 canvas context'));
+            return;
+          }
+          
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          
+          // 获取图片上方10%区域的像素数据
+          const top10Percent = Math.floor(img.height * 0.1);
+          const imageData = ctx.getImageData(0, 0, img.width, top10Percent);
+          const pixels = imageData.data;
+          
+          // 计算所有像素，找出饱和度最高的颜色
+          let highestSaturation = -1;
+          let mostSaturatedR = 0, mostSaturatedG = 0, mostSaturatedB = 0;
+          
+          for (let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            
+            // 计算饱和度（使用 RGB 到 HSL 的转换）
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            const delta = max - min;
+            
+            // 饱和度计算：当 max 不为 0 时，饱和度为 delta / max
+            // 当 max 为 0 时，饱和度为 0（黑色）
+            const saturation = max === 0 ? 0 : delta / max;
+            
+            // 找出饱和度最高的颜色
+            if (saturation > highestSaturation) {
+              highestSaturation = saturation;
+              mostSaturatedR = r;
+              mostSaturatedG = g;
+              mostSaturatedB = b;
+            }
+          }
+          
+          // 使用饱和度最高的颜色
+          const hexColor = `#${mostSaturatedR.toString(16).padStart(2, '0')}${mostSaturatedG.toString(16).padStart(2, '0')}${mostSaturatedB.toString(16).padStart(2, '0')}`;
+          resolve(hexColor);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => reject(new Error('图片加载失败'));
+      img.src = imageUrl;
+    });
+  };
+
+  // RGB转HSL
+  const rgbToHsl = (r: number, g: number, b: number) => {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) {
+        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+      } else if (max === g) {
+        h = ((b - r) / d + 2) / 6;
+      } else {
+        h = ((r - g) / d + 4) / 6;
+      }
+    }
+    return [h * 360, s, l];
+  };
+
+  // HSL转RGB
+  const hslToRgb = (h: number, s: number, l: number) => {
+    h /= 360;
+    let r, g, b;
+
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+    }
+
+    return [
+      Math.round(r * 255),
+      Math.round(g * 255),
+      Math.round(b * 255)
+    ];
+  };
+
+  // 降低绿色饱和度10%
+  const reduceGreenSaturation = (color: string) => {
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    
+    // 判断是否是绿色（G值最高，且G明显大于R和B）
+    const isGreen = g > r && g > b && (g - Math.max(r, b)) > 30;
+    
+    if (isGreen) {
+      const [h, s, l] = rgbToHsl(r, g, b);
+      // 降低饱和度10%
+      const newS = Math.max(0, s - 0.1);
+      const [newR, newG, newB] = hslToRgb(h, newS, l);
+      return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+    }
+    
+    return color;
+  };
+
+  // 根据主色生成颜色方案
+  const generateColorScheme = (mainColor: string) => {
+    // 如果是绿色，降低饱和度10%
+    const adjustedColor = reduceGreenSaturation(mainColor);
+    
+    // 解析主色
+    const r = parseInt(adjustedColor.slice(1, 3), 16);
+    const g = parseInt(adjustedColor.slice(3, 5), 16);
+    const b = parseInt(adjustedColor.slice(5, 7), 16);
+    
+    // 生成深色版本（用于选中状态）
+    const darkR = Math.max(0, Math.floor(r * 0.7));
+    const darkG = Math.max(0, Math.floor(g * 0.7));
+    const darkB = Math.max(0, Math.floor(b * 0.7));
+    const darkColor = `rgb(${darkR}, ${darkG}, ${darkB})`;
+    
+    // 生成浅色版本（用于未选中背景）
+    const lightR = Math.min(255, Math.floor(r * 0.15 + 220));
+    const lightG = Math.min(255, Math.floor(g * 0.15 + 220));
+    const lightB = Math.min(255, Math.floor(b * 0.15 + 220));
+    const lightColor = `rgb(${lightR}, ${lightG}, ${lightB})`;
+    
+    // 生成渐变中间色
+    const midR = Math.min(255, Math.floor(r * 0.85));
+    const midG = Math.min(255, Math.floor(g * 0.85));
+    const midB = Math.min(255, Math.floor(b * 0.85));
+    const midColor = `rgb(${midR}, ${midG}, ${midB})`;
+    
+    return {
+      selected: {
+        background: `linear-gradient(111deg, ${adjustedColor} -1%, ${darkColor} 111%)`,
+        textColor: "#FFFFFF"
+      },
+      unselected: {
+        background: `linear-gradient(111deg, ${lightColor} -1%, #FFFFFF 111%)`,
+        textColor: adjustedColor // 未选中项使用纯色，而不是渐变
+      }
+    };
+  };
+
+  // 当背景图切换时，提取颜色
+  useEffect(() => {
+    const loadColorFromImage = async () => {
+      try {
+        const imageUrl = getBackgroundImage(currentBg);
+        const mainColor = await extractColorFromImage(imageUrl);
+        const scheme = generateColorScheme(mainColor);
+        setDynamicColorScheme(scheme);
+      } catch (error) {
+        console.warn('颜色提取失败，使用默认颜色:', error);
+        // 使用默认绿色方案作为后备
+        setDynamicColorScheme({
+          selected: {
+            background: "linear-gradient(111deg, #25C8A0 -1%, #00D785 111%)",
+            textColor: "#FFFFFF"
+          },
+          unselected: {
+            background: "linear-gradient(111deg, #DCFFC9 -1%, #FFFFFF 111%)",
+            textColor: "#25C8A0"
+          }
+        });
+      }
+    };
+    
+    loadColorFromImage();
+  }, [currentBg]);
+
+  // 根据当前背景图获取颜色方案
+  const getColorScheme = () => {
+    return dynamicColorScheme || {
+      selected: {
+        background: "linear-gradient(111deg, #25C8A0 -1%, #00D785 111%)",
+        textColor: "#FFFFFF"
+      },
+      unselected: {
+        background: "linear-gradient(111deg, #DCFFC9 -1%, #FFFFFF 111%)",
+        textColor: "#25C8A0"
+      }
+    };
+  };
+
+  // 获取主色（用于描边和文字）
+  const getMainColor = () => {
+    if (dynamicColorScheme) {
+      // 从selected.background中提取主色
+      const bg = dynamicColorScheme.selected.background;
+      const match = bg.match(/#[0-9A-Fa-f]{6}/);
+      return match ? match[0] : "#25C8A0";
+    }
+    return "#25C8A0";
+  };
+
+  // 获取主色的rgba格式（带20%透明度，用于描边）
+  const getMainColorWithOpacity = () => {
+    const mainColor = getMainColor();
+    let r = parseInt(mainColor.slice(1, 3), 16);
+    let g = parseInt(mainColor.slice(3, 5), 16);
+    let b = parseInt(mainColor.slice(5, 7), 16);
+    // 混合20%纯黑：80%原色 + 20%黑色
+    r = Math.round(r * 0.8);
+    g = Math.round(g * 0.8);
+    b = Math.round(b * 0.8);
+    return `rgba(${r}, ${g}, ${b}, 0.2)`;
+  };
+
+  // 处理选项点击，直接切换背景图（无淡入淡出效果）
+  const handleOptionClick = (option: string) => {
+    if (option === selectedOption || isTransitioning) return;
+    
+    setIsTransitioning(true);
+    setSelectedOption(option);
+    
+    // 直接切换背景图，无淡入淡出
+    setCurrentBg(option);
+    setBgOpacity(1);
+    
+    // 短暂延迟后允许再次点击
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 100);
+  };
+
+  // 渲染选项的辅助函数
+  const renderOption = (option: string, label: string) => {
+    const scheme = getColorScheme();
+    const isSelected = selectedOption === option;
+    
+    return (
+      <div 
+        className="flex items-center cursor-pointer hover:opacity-80 transition-opacity" 
+        style={{ gap: "clamp(8px, 0.9vw, 16px)" }}
+        onClick={() => handleOptionClick(option)}
+      >
+        <div
+          className="flex items-center justify-center rounded-[40px] flex-shrink-0"
+          style={{
+            width: "clamp(36px, 3vw, 58px)",
+            height: "clamp(36px, 3vw, 58px)",
+            padding: "11px 16px",
+            background: isSelected 
+              ? scheme.selected.background
+              : scheme.unselected.background,
+            transition: "background 0.3s ease-in-out"
+          }}
+        >
+          <span
+            className="font-bold"
+            style={{
+              fontSize: "clamp(16px, 1.9vw, 36px)",
+              color: isSelected 
+                ? scheme.selected.textColor 
+                : scheme.unselected.textColor,
+              transition: "color 0.3s ease-in-out"
+            }}
+          >
+            {option}
+          </span>
+        </div>
+        <span 
+          className="font-bold"
+          style={{ 
+            fontSize: "clamp(14px, 1.8vw, 24px)",
+            color: "#3D3D3D"
+          }}
+        >
+          {label}
+        </span>
+      </div>
+    );
+  };
+
   // SVG 路径动画 refs
   const path1Ref = useRef<SVGPathElement>(null);
   const path2Ref = useRef<SVGPathElement>(null);
@@ -32,15 +378,64 @@ export default function MathProblemSolutionPage() {
     "所以b>a,即b>a>1"
   ];
 
-  // 文字逐行显示状态 - 初始显示第一行
-  const [visibleLines, setVisibleLines] = useState<number[]>([0]);
+  // 文字逐行显示状态 - 初始隐藏，等待SVG动画完成
+  const [visibleLines, setVisibleLines] = useState<number[]>([]);
   // SVG 容器显示状态 - 初始隐藏，等待动画
   const [showSvg, setShowSvg] = useState(false);
+  // SVG 箭头显示状态 - 初始隐藏，等待坐标轴绘制完成
+  const [showArrows, setShowArrows] = useState(false);
+  // SVG 坐标轴标签显示状态（X、Y、0）- 初始隐藏，等待箭头显示
+  const [showAxisLabels, setShowAxisLabels] = useState(false);
+  // SVG 函数标签显示状态（y=b^x、y=a^x）- 初始隐藏，等待曲线绘制完成
+  const [showFunctionLabels, setShowFunctionLabels] = useState(false);
 
   useEffect(() => {
     // 确保在客户端执行
     if (typeof window === 'undefined') return;
     
+    // 初始化 SVG 元素为隐藏状态（立即执行，不等待动画）
+    const initSvgElements = () => {
+      // 初始化线条为隐藏
+      const initLine = (element: SVGLineElement | null) => {
+        if (!element) return;
+        try {
+          const x1 = parseFloat(element.getAttribute("x1") || "0");
+          const y1 = parseFloat(element.getAttribute("y1") || "0");
+          const x2 = parseFloat(element.getAttribute("x2") || "0");
+          const y2 = parseFloat(element.getAttribute("y2") || "0");
+          const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+          if (length > 0) {
+            element.style.strokeDasharray = `${length}`;
+            element.style.strokeDashoffset = `${length}`;
+            element.style.transition = "none"; // 初始化时不使用过渡
+          }
+        } catch (error) {
+          console.warn('Line init error:', error);
+        }
+      };
+
+      // 初始化路径为隐藏
+      const initPath = (element: SVGPathElement | null) => {
+        if (!element) return;
+        try {
+          const length = element.getTotalLength();
+          if (length > 0) {
+            element.style.strokeDasharray = `${length}`;
+            element.style.strokeDashoffset = `${length}`;
+            element.style.transition = "none"; // 初始化时不使用过渡
+          }
+        } catch (error) {
+          console.warn('Path init error:', error);
+        }
+      };
+
+      // 立即初始化所有 SVG 元素为隐藏状态
+      initLine(line1Ref.current);
+      initLine(line2Ref.current);
+      initPath(path1Ref.current);
+      initPath(path2Ref.current);
+    };
+
     // 为路径添加动画
     const animatePath = (element: SVGPathElement | null, delay: number = 0) => {
       if (!element) {
@@ -55,6 +450,7 @@ export default function MathProblemSolutionPage() {
           return;
         }
         
+        // 确保已经初始化
         element.style.strokeDasharray = `${length}`;
         element.style.strokeDashoffset = `${length}`;
         element.style.transition = "stroke-dashoffset 2s ease-in-out";
@@ -88,6 +484,7 @@ export default function MathProblemSolutionPage() {
           return;
         }
         
+        // 确保已经初始化
         element.style.strokeDasharray = `${length}`;
         element.style.strokeDashoffset = `${length}`;
         element.style.transition = "stroke-dashoffset 1.5s ease-in-out";
@@ -102,9 +499,18 @@ export default function MathProblemSolutionPage() {
       }
     };
 
-    // 文字逐行显示动画
-    // 第一行已经显示，从第二行开始
-    for (let i = 1; i < solutionLines.length; i++) {
+    // 立即初始化 SVG 元素为隐藏状态
+    // 使用 setTimeout 确保 DOM 已渲染
+    setTimeout(() => {
+      initSvgElements();
+    }, 0);
+
+    // 左侧文字先出现
+    const textAnimationStartDelay = 300; // 页面加载后 300ms 开始文字动画
+    const textAnimationDuration = solutionLines.length * 300; // 所有文字行的动画时长
+    
+    // 文字逐行显示动画 - 先开始
+    for (let i = 0; i < solutionLines.length; i++) {
       setTimeout(() => {
         setVisibleLines(prev => {
           // 确保按顺序添加，避免重复
@@ -113,14 +519,17 @@ export default function MathProblemSolutionPage() {
           }
           return prev;
         });
-      }, i * 300);
+      }, textAnimationStartDelay + i * 300);
     }
 
-    // SVG 容器在文字动画完成后淡入
-    const textAnimationDuration = solutionLines.length * 300; // 所有文字行的动画时长
-    const svgContainerDelay = textAnimationDuration + 500; // 文字动画结束后 500ms 开始淡入
+    // 文字动画完成后，显示 SVG 图形
+    const svgContainerDelay = textAnimationStartDelay + textAnimationDuration + 500; // 文字动画结束后 500ms 开始淡入
     
+    // 在容器显示前，确保 SVG 线条是隐藏的
     setTimeout(() => {
+      // 重新初始化 SVG 元素为隐藏状态（确保刷新后线条消失）
+      initSvgElements();
+      // 然后显示容器
       setShowSvg(true);
     }, svgContainerDelay);
 
@@ -130,14 +539,38 @@ export default function MathProblemSolutionPage() {
     // 等待 SVG 元素渲染后再开始动画
     const initSvgAnimations = () => {
       if (line1Ref.current && line2Ref.current && path1Ref.current && path2Ref.current) {
-        // X轴（从左到右）
-        animateLine(line1Ref.current, 0);
-        // Y轴（从下到上，在X轴之后）
-        animateLine(line2Ref.current, 1500);
-        // y=b^x 曲线（从左到右，在Y轴之后）
-        animatePath(path1Ref.current, 3000);
-        // y=a^x 曲线（从左到右，在y=b^x之后）
-        animatePath(path2Ref.current, 5000);
+        // 确保线条仍然是隐藏状态
+        initSvgElements();
+        
+        // 短暂延迟后开始动画
+        setTimeout(() => {
+          // 1. X和Y坐标轴同时出现
+          animateLine(line1Ref.current, 0); // X轴
+          animateLine(line2Ref.current, 0); // Y轴，同时出现
+          
+          // 2. 坐标轴动画完成后（1.5s），显示箭头
+          const arrowDelay = 1500 + 300; // 坐标轴动画时长1.5s + 300ms延迟
+          setTimeout(() => {
+            setShowArrows(true);
+          }, arrowDelay);
+          
+          // 3. 箭头显示后，显示X、Y、0标签
+          const axisLabelsDelay = arrowDelay + 300;
+          setTimeout(() => {
+            setShowAxisLabels(true);
+          }, axisLabelsDelay);
+          
+          // 4. 标签显示后，显示两条曲线
+          const curvesDelay = axisLabelsDelay + 300;
+          animatePath(path1Ref.current, curvesDelay); // y=b^x 曲线
+          animatePath(path2Ref.current, curvesDelay); // y=a^x 曲线，同时出现
+          
+          // 5. 曲线动画完成后（2s），显示函数标签
+          const functionLabelsDelay = curvesDelay + 2000 + 300; // 曲线动画时长2s + 300ms延迟
+          setTimeout(() => {
+            setShowFunctionLabels(true);
+          }, functionLabelsDelay);
+        }, 50);
       } else {
         // 如果元素还没准备好，等待一段时间后重试
         setTimeout(initSvgAnimations, 100);
@@ -152,14 +585,22 @@ export default function MathProblemSolutionPage() {
 
   return (
     <div 
-      className="min-h-screen w-full fixed inset-0 bg-cover bg-center bg-no-repeat"
+      className="min-h-screen w-full fixed inset-0"
       style={{
-        backgroundImage: `url('${process.env.NODE_ENV === 'production' ? '/aiteacher' : ''}/bg@2x.webp')`,
+        position: 'relative',
       }}
     >
+      {/* 背景图层 - 当前背景 */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: `url('${getBackgroundImage(currentBg)}')`,
+          zIndex: 0,
+        }}
+      />
       {/* 主内容区域 */}
       <div 
-        className="relative mx-auto z-10"
+        className="relative mx-auto"
         style={{
           width: "100%",
           height: "100vh",
@@ -167,7 +608,8 @@ export default function MathProblemSolutionPage() {
           paddingRight: "clamp(16px, 2.08vw, 40px)",
           paddingTop: "clamp(16px, 2.08vw, 40px)",
           paddingBottom: "clamp(16px, 2.08vw, 40px)",
-          boxSizing: "border-box"
+          boxSizing: "border-box",
+          zIndex: 1
         }}
       >
         {/* 主卡片 */}
@@ -177,18 +619,46 @@ export default function MathProblemSolutionPage() {
             width: "100%",
             height: "100%",
             maxWidth: "1840px",
-            padding: "2px",
-            background: "linear-gradient(180deg, #F0FFD9 0%, rgba(250, 255, 241, 0) 100%)",
-            boxShadow: "none"
+            borderRadius: "40px",
+            background: "#FFFFFF",
+            boxShadow: `0 0 0 clamp(7px, 0.73vw, 14px) ${getMainColorWithOpacity()}`,
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            transition: "box-shadow 0.3s ease-in-out"
           }}
         >
           <div
-            className="relative rounded-[40px] overflow-hidden w-full h-full flex flex-col"
+            className="relative rounded-[40px] w-full h-full flex flex-col"
             style={{ 
-              background: "linear-gradient(180deg, rgba(220, 255, 201, 0.87) 0%, #FFFFFF 10%, #FFFFFF 100%)",
-              boxShadow: "none"
+              background: "linear-gradient(180deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.85) 3%, rgba(255, 255, 255, 0.95) 8%, #FFFFFF 20%, #FFFFFF 100%)",
+              boxShadow: "none",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              overflow: "hidden"
             }}
           >
+            {/* 背景装饰图片层 - 在最前面 */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                zIndex: 10,
+                overflow: "visible"
+              }}
+            >
+              <img
+                src={`${process.env.NODE_ENV === 'production' ? '/aiteacher' : ''}/bg_toppoint@2x.png`}
+                alt=""
+                className="pointer-events-none"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "clamp(200px, 20vw, 400px)",
+                  height: "auto",
+                  objectFit: "contain"
+                }}
+              />
+            </div>
           {/* 上半部分：题目区域 */}
           <div 
             className="relative rounded-[40px] flex-shrink-0"
@@ -198,11 +668,12 @@ export default function MathProblemSolutionPage() {
               paddingTop: "clamp(16px, 4.6vw, 88px)",
               paddingBottom: "clamp(16px, 1.1vw, 21px)",
               boxSizing: "content-box",
-              boxShadow: "none"
+              boxShadow: "none",
+              zIndex: 2
             }}
           >
             {/* 题目文本 */}
-            <div className="mb-6">
+            <div className="mb-6 relative" style={{ zIndex: 2 }}>
               <h2 
                 className="font-semibold text-[#3D3D3D] mb-4 leading-relaxed"
                 style={{ fontSize: "clamp(18px, 2.5vw, 32px)" }}
@@ -214,140 +685,17 @@ export default function MathProblemSolutionPage() {
                 className="flex flex-wrap items-center"
                 style={{ gap: "clamp(32px, 3vw, 48px) clamp(24px, 2.5vw, 48px)" }}
               >
-                {/* 选项 A */}
-                <div className="flex items-center" style={{ gap: "clamp(8px, 0.9vw, 16px)" }}>
-                  <div
-                    className="flex items-center justify-center rounded-[40px] flex-shrink-0"
-                    style={{
-                      width: "clamp(36px, 3vw, 58px)",
-                      height: "clamp(36px, 3vw, 58px)",
-                      padding: "11px 16px",
-                      background: "linear-gradient(111deg, #DCFFC9 -1%, #FFFFFF 111%)"
-                    }}
-                  >
-                    <span
-                      className="font-bold"
-                      style={{
-                        fontSize: "clamp(16px, 1.9vw, 36px)",
-                        background: "linear-gradient(324deg, #25C8A0 5%, #00D785 99%)",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text"
-                      }}
-                    >
-                      A
-                    </span>
-                  </div>
-                  <span 
-                    className="text-[#3D3D3D]"
-                    style={{ fontSize: "clamp(14px, 1.8vw, 24px)" }}
-                  >
-                    a&gt;b&gt;1
-                  </span>
-                </div>
-
-                {/* 选项 B */}
-                <div className="flex items-center" style={{ gap: "clamp(8px, 0.9vw, 16px)" }}>
-                  <div
-                    className="flex items-center justify-center rounded-[40px] flex-shrink-0"
-                    style={{
-                      width: "clamp(36px, 3vw, 58px)",
-                      height: "clamp(36px, 3vw, 58px)",
-                      padding: "11px 16px",
-                      background: "linear-gradient(111deg, #DCFFC9 -1%, #FFFFFF 111%)"
-                    }}
-                  >
-                    <span
-                      className="font-bold"
-                      style={{
-                        fontSize: "clamp(16px, 1.9vw, 36px)",
-                        background: "linear-gradient(324deg, #25C8A0 5%, #00D785 99%)",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text"
-                      }}
-                    >
-                      B
-                    </span>
-                  </div>
-                  <span 
-                    className="text-[#3D3D3D]"
-                    style={{ fontSize: "clamp(14px, 1.8vw, 24px)" }}
-                  >
-                    0&lt;a&lt;b&lt;1
-                  </span>
-                </div>
-
-                {/* 选项 C */}
-                <div className="flex items-center" style={{ gap: "clamp(8px, 0.9vw, 16px)" }}>
-                  <div
-                    className="flex items-center justify-center rounded-[40px] flex-shrink-0"
-                    style={{
-                      width: "clamp(36px, 3vw, 58px)",
-                      height: "clamp(36px, 3vw, 58px)",
-                      padding: "11px 16px",
-                      background: "linear-gradient(111deg, #DCFFC9 -1%, #FFFFFF 111%)"
-                    }}
-                  >
-                    <span
-                      className="font-bold"
-                      style={{
-                        fontSize: "clamp(16px, 1.9vw, 36px)",
-                        background: "linear-gradient(324deg, #25C8A0 5%, #00D785 99%)",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text"
-                      }}
-                    >
-                      C
-                    </span>
-                  </div>
-                  <span 
-                    className="text-[#3D3D3D]"
-                    style={{ fontSize: "clamp(14px, 1.8vw, 24px)" }}
-                  >
-                    2<sup>a</sup>&lt;2<sup>b</sup>
-                  </span>
-                </div>
-
-                {/* 选项 D */}
-                <div className="flex items-center" style={{ gap: "clamp(8px, 0.9vw, 16px)" }}>
-                  <div
-                    className="flex items-center justify-center rounded-[40px] flex-shrink-0"
-                    style={{
-                      width: "clamp(36px, 3vw, 58px)",
-                      height: "clamp(36px, 3vw, 58px)",
-                      padding: "11px 16px",
-                      background: "linear-gradient(111deg, #DCFFC9 -1%, #FFFFFF 111%)"
-                    }}
-                  >
-                    <span
-                      className="font-bold"
-                      style={{
-                        fontSize: "clamp(16px, 1.9vw, 36px)",
-                        background: "linear-gradient(324deg, #25C8A0 5%, #00D785 99%)",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text"
-                      }}
-                    >
-                      D
-                    </span>
-                  </div>
-                  <span 
-                    className="text-[#3D3D3D]"
-                    style={{ fontSize: "clamp(14px, 1.8vw, 24px)" }}
-                  >
-                    b&gt;a&gt;1
-                  </span>
-                </div>
+                {renderOption('A', '高中数学')}
+                {renderOption('B', '小学英语')}
+                {renderOption('C', '小学数学')}
+                {renderOption('D', '初中化学')}
               </div>
             </div>
 
             {/* 难度等级和作答正确率 */}
             <div 
-              className="flex items-center flex-wrap"
-              style={{ gap: "40px" }}
+              className="flex items-center flex-wrap relative"
+              style={{ gap: "40px", zIndex: 1 }}
             >
               <div className="flex items-center gap-2">
                 <span 
@@ -450,7 +798,7 @@ export default function MathProblemSolutionPage() {
             className="relative rounded-b-[40px] flex-1 w-full"
             style={{ 
               background: "#F6F9F8",
-              backdropFilter: "blur(40px)",
+              backdropFilter: "blur(10px)",
               boxShadow: "none",
               paddingLeft: "clamp(16px, 5.4vw, 104px)",
               paddingRight: "clamp(16px, 5.4vw, 104px)",
@@ -510,15 +858,18 @@ export default function MathProblemSolutionPage() {
                         <div 
                           className="bg-[#FFF1B9] absolute"
                           style={{ 
-                            height: "clamp(12px, 1.2vw, 19px)", 
-                            width: "clamp(300px, 35vw, 527px)",
+                            height: "0.6em",
+                            width: "100%",
                             bottom: "0",
                             left: "0"
                           }}
                         />
                         <span 
-                          className="font-semibold text-[#018B50] relative z-10 inline-block"
-                          style={{ fontSize: "clamp(16px, 2vw, 24px)" }}
+                          className="font-semibold relative z-10 inline-block"
+                          style={{ 
+                            fontSize: "clamp(16px, 2vw, 24px)",
+                            color: getMainColor()
+                          }}
                         >
                           第一步，分析指数函数图形特征
                         </span>
@@ -570,6 +921,23 @@ export default function MathProblemSolutionPage() {
                     preserveAspectRatio="xMidYMid meet"
                     className="absolute inset-0"
                   >
+                    {/* 箭头标记定义 */}
+                    <defs>
+                      <marker
+                        id="arrowhead"
+                        markerWidth="10"
+                        markerHeight="10"
+                        refX="9"
+                        refY="3"
+                        orient="auto"
+                      >
+                        <polygon
+                          points="0 0, 10 3, 0 6"
+                          fill="#3D3D3D"
+                        />
+                      </marker>
+                    </defs>
+                    
                     {/* 坐标轴 */}
                     <line
                       ref={line1Ref}
@@ -579,6 +947,7 @@ export default function MathProblemSolutionPage() {
                       y2="478.5"
                       stroke="#3D3D3D"
                       strokeWidth="2"
+                      markerEnd={showArrows ? "url(#arrowhead)" : undefined}
                     />
                     <line
                       ref={line2Ref}
@@ -588,16 +957,21 @@ export default function MathProblemSolutionPage() {
                       y2="79"
                       stroke="#3D3D3D"
                       strokeWidth="2"
+                      markerEnd={showArrows ? "url(#arrowhead)" : undefined}
                     />
 
-                    {/* Y轴标签 */}
+                    {/* Y轴标签 - 更靠近Y轴 */}
                     <text
-                      x="170"
+                      x="50"
                       y="30"
                       fontSize="clamp(18px, 2vw, 24px)"
                       fill="#3D3D3D"
                       textAnchor="middle"
                       fontWeight="bold"
+                      opacity={showAxisLabels ? 1 : 0}
+                      style={{
+                        transition: "opacity 0.5s ease-in-out"
+                      }}
                     >
                       Y
                     </text>
@@ -610,18 +984,27 @@ export default function MathProblemSolutionPage() {
                       fill="#3D3D3D"
                       textAnchor="middle"
                       fontWeight="bold"
+                      opacity={showAxisLabels ? 1 : 0}
+                      style={{
+                        transition: "opacity 0.5s ease-in-out"
+                      }}
                     >
                       X
                     </text>
 
-                    {/* 原点 */}
+                    {/* 原点 - 在坐标轴起点位置 */}
                     <text
-                      x="225"
-                      y="500"
+                      x="39"
+                      y="478.5"
                       fontSize="clamp(18px, 2vw, 24px)"
                       fill="#3D3D3D"
                       textAnchor="middle"
                       fontWeight="bold"
+                      opacity={showAxisLabels ? 1 : 0}
+                      style={{
+                        transition: "opacity 0.5s ease-in-out",
+                        transform: "translate(-10px, 15px)"
+                      }}
                     >
                       0
                     </text>
@@ -651,6 +1034,10 @@ export default function MathProblemSolutionPage() {
                       fontSize="clamp(18px, 2vw, 24px)"
                       fill="#3D3D3D"
                       fontWeight="bold"
+                      opacity={showFunctionLabels ? 1 : 0}
+                      style={{
+                        transition: "opacity 0.5s ease-in-out"
+                      }}
                     >
                       y=b<sup>x</sup>
                     </text>
@@ -662,6 +1049,10 @@ export default function MathProblemSolutionPage() {
                       fontSize="clamp(18px, 2vw, 24px)"
                       fill="#3D3D3D"
                       fontWeight="bold"
+                      opacity={showFunctionLabels ? 1 : 0}
+                      style={{
+                        transition: "opacity 0.5s ease-in-out"
+                      }}
                     >
                       y=a<sup>x</sup>
                     </text>
@@ -676,3 +1067,4 @@ export default function MathProblemSolutionPage() {
     </div>
   );
 }
+
