@@ -27,7 +27,7 @@ node fix-paths.js
 1. 在 GitHub 上创建新仓库
 2. 将代码推送到仓库：
    ```bash
-   git remote add origin https://github.com/你的用户名/仓库名.git
+   git remote add origin https://github.com/xujiaxin/aiteacher.git
    git branch -M main
    git push -u origin main
    ```
@@ -39,7 +39,7 @@ node fix-paths.js
 ## 访问页面
 
 部署完成后，页面可以通过以下 URL 访问：
-- `https://你的用户名.github.io/仓库名/scrm/default-panel/`
+- `https://xujiaxin.github.io/aiteacher/scrm/default-panel/`
 
 
 
