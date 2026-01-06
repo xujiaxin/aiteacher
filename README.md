@@ -41,3 +41,8 @@ node fix-paths.js
 部署完成后，页面可以通过以下 URL 访问：
 - `https://你的用户名.github.io/仓库名/scrm/default-panel/`
 
+
+
+
+
+

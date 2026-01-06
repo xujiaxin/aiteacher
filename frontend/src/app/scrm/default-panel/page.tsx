@@ -5,10 +5,11 @@ import React, { useEffect, useRef, useState } from "react";
 export default function MathProblemSolutionPage() {
   // 根据页面标题获取图标
   const getIconByTitle = (title: string) => {
+    const basePath = process.env.NODE_ENV === 'production' ? '/aiteacher' : '';
     if (title.includes("解题步骤") || title.includes("解题")) {
-      return "/icon_jietibuzou@2x.png";
+      return `${basePath}/icon_jietibuzou@2x.png`;
     }
-    return "/icon_jietibuzou@2x.png"; // 默认图标
+    return `${basePath}/icon_jietibuzou@2x.png`; // 默认图标
   };
 
   const sectionTitle = "解题步骤";
@@ -20,13 +21,6 @@ export default function MathProblemSolutionPage() {
   const line1Ref = useRef<SVGLineElement>(null);
   const line2Ref = useRef<SVGLineElement>(null);
 
-  // 文字逐行显示状态 - 初始显示第一行，避免完全空白
-  const [visibleLines, setVisibleLines] = useState<number[]>([0]);
-  // SVG 容器显示状态 - 初始隐藏，等待动画
-  const [showSvg, setShowSvg] = useState(false);
-  // 客户端挂载状态
-  const [mounted, setMounted] = useState(false);
-  
   // 解题步骤的文字行
   const solutionLines = [
     "指数函数y=a<sup>x</sup>的图象特征:",
@@ -38,17 +32,28 @@ export default function MathProblemSolutionPage() {
     "所以b>a,即b>a>1"
   ];
 
+  // 文字逐行显示状态 - 初始显示第一行
+  const [visibleLines, setVisibleLines] = useState<number[]>([0]);
+  // SVG 容器显示状态 - 初始隐藏，等待动画
+  const [showSvg, setShowSvg] = useState(false);
+
   useEffect(() => {
     // 确保在客户端执行
     if (typeof window === 'undefined') return;
     
     // 为路径添加动画
     const animatePath = (element: SVGPathElement | null, delay: number = 0) => {
-      if (!element) return;
+      if (!element) {
+        console.warn('Path element not found');
+        return;
+      }
       
       try {
         const length = element.getTotalLength();
-        if (length === 0) return;
+        if (length === 0) {
+          console.warn('Path length is 0');
+          return;
+        }
         
         element.style.strokeDasharray = `${length}`;
         element.style.strokeDashoffset = `${length}`;
@@ -66,7 +71,10 @@ export default function MathProblemSolutionPage() {
 
     // 为直线添加动画
     const animateLine = (element: SVGLineElement | null, delay: number = 0) => {
-      if (!element) return;
+      if (!element) {
+        console.warn('Line element not found');
+        return;
+      }
       
       try {
         const x1 = parseFloat(element.getAttribute("x1") || "0");
@@ -75,7 +83,10 @@ export default function MathProblemSolutionPage() {
         const y2 = parseFloat(element.getAttribute("y2") || "0");
         
         const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-        if (length === 0) return;
+        if (length === 0) {
+          console.warn('Line length is 0');
+          return;
+        }
         
         element.style.strokeDasharray = `${length}`;
         element.style.strokeDashoffset = `${length}`;
@@ -91,11 +102,8 @@ export default function MathProblemSolutionPage() {
       }
     };
 
-    // 文字逐行显示动画 - 使用更简单直接的方式
-    // 第一行立即显示
-    setVisibleLines([0]);
-    
-    // 后续行依次显示
+    // 文字逐行显示动画
+    // 第一行已经显示，从第二行开始
     for (let i = 1; i < solutionLines.length; i++) {
       setTimeout(() => {
         setVisibleLines(prev => {
@@ -109,33 +117,38 @@ export default function MathProblemSolutionPage() {
     }
 
     // SVG 容器在文字动画完成后淡入
-    const svgContainerDelay = solutionLines.length * 300 + 500;
+    const textAnimationDuration = solutionLines.length * 300; // 所有文字行的动画时长
+    const svgContainerDelay = textAnimationDuration + 500; // 文字动画结束后 500ms 开始淡入
     
     setTimeout(() => {
       setShowSvg(true);
     }, svgContainerDelay);
 
-    // SVG 动画
-    const svgStartDelay = svgContainerDelay + 300;
+    // SVG 动画在容器显示后开始
+    const svgStartDelay = svgContainerDelay + 300; // 容器淡入后再等待 300ms
     
+    // 等待 SVG 元素渲染后再开始动画
     const initSvgAnimations = () => {
-      animateLine(line1Ref.current, svgStartDelay);
-      animateLine(line2Ref.current, svgStartDelay + 1500);
-      animatePath(path1Ref.current, svgStartDelay + 3000);
-      animatePath(path2Ref.current, svgStartDelay + 5000);
-    };
-    
-    // 等待 SVG 元素渲染
-    const checkAndInit = () => {
       if (line1Ref.current && line2Ref.current && path1Ref.current && path2Ref.current) {
-        initSvgAnimations();
+        // X轴（从左到右）
+        animateLine(line1Ref.current, 0);
+        // Y轴（从下到上，在X轴之后）
+        animateLine(line2Ref.current, 1500);
+        // y=b^x 曲线（从左到右，在Y轴之后）
+        animatePath(path1Ref.current, 3000);
+        // y=a^x 曲线（从左到右，在y=b^x之后）
+        animatePath(path2Ref.current, 5000);
       } else {
-        setTimeout(checkAndInit, 50);
+        // 如果元素还没准备好，等待一段时间后重试
+        setTimeout(initSvgAnimations, 100);
       }
     };
     
-    setTimeout(checkAndInit, 100);
-  }, [solutionLines.length]);
+    // 在 SVG 容器显示后开始检查并初始化动画
+    setTimeout(() => {
+      initSvgAnimations();
+    }, svgStartDelay);
+  }, []); // 空依赖数组，确保只执行一次
 
   return (
     <div 

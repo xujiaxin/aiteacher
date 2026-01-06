@@ -1,10 +1,15 @@
 import type { NextConfig } from "next";
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const nextConfig: NextConfig = {
-  output: 'export',
-  basePath: '/aiteacher',
-  assetPrefix: '/aiteacher',
-  trailingSlash: true,
+  // 静态导出配置（仅在生产构建时生效）
+  ...(isProduction && {
+    output: 'export',
+    basePath: '/aiteacher',
+    assetPrefix: '/aiteacher',
+    trailingSlash: true,
+  }),
   images: {
     unoptimized: true,
   },
